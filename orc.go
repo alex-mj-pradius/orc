@@ -27,6 +27,7 @@ type OracleConnect struct {
 	DBLogin string `xml:"db-login"` // Oracle.dbLogin = "oracle-user"
 	DBPass  string `xml:"db-pass"`  // Oracle.dbPass = "1pwd2PWD3"
 	DBName  string `xml:"db-name"`  // Oracle.bdName = "BDNAME"
+	NLSLang string `xml:"nls-lang"` // Oracle.NLSLang = "RUSSIAN_RUSSIA.CL8MSWIN1251"
 	DB      *sql.DB
 }
 
@@ -37,7 +38,10 @@ func (or *OracleConnect) ConnectBD() {
 	}
 
 	Log.Info("\n******** Поднять коннекты к базам ********")
-	os.Setenv("NLS_LANG", "RUSSIAN_RUSSIA.CL8MSWIN1251")
+	if len(or.NLSLang) > 0 {
+		//os.Setenv("NLS_LANG", "RUSSIAN_RUSSIA.CL8MSWIN1251")
+		os.Setenv("NLS_LANG", or.NLSLang)
+	}
 	orDB, err := sql.Open("godror", or.DBLogin+"/"+or.DBPass+"@"+or.DBHost)
 
 	if err != nil {
