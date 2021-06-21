@@ -3,16 +3,13 @@ package orc
 import (
 	"database/sql"
 	"encoding/xml"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	log "github.com/alex-mj-pradius/fox-log"
 	_ "github.com/godror/godror"
 )
-
-//Log to all function
-var Log log.Log
 
 // Oracle - connect to data base
 var Oracle OracleConnect
@@ -32,12 +29,11 @@ type OracleConnect struct {
 }
 
 //ConnectBD - .....
-func (or *OracleConnect) ConnectBD() {
+func (or *OracleConnect) ConnectBD() error {
 	if Oracle.DB != nil {
 		Oracle.DB.Close()
 	}
-
-	Log.Info("\n******** Поднять коннекты к базам ********")
+	// defer db.Close() //  клозить будем на выходе из мэйна
 	if len(or.NLSLang) > 0 {
 		//os.Setenv("NLS_LANG", "RUSSIAN_RUSSIA.CL8MSWIN1251")
 		os.Setenv("NLS_LANG", or.NLSLang)
@@ -45,17 +41,16 @@ func (or *OracleConnect) ConnectBD() {
 	orDB, err := sql.Open("godror", or.DBLogin+"/"+or.DBPass+"@"+or.DBHost)
 
 	if err != nil {
-		Log.Error("Проблемы с коннектом: " + or.DBLogin + "/****" + "@" + or.DBHost + "\n" + err.Error())
-		return
+		return errors.New("Проблемы с коннектом: " + or.DBLogin + "/****" + "@" + or.DBHost + "\n" + err.Error())
 	}
 	or.DB = orDB
 
 	rows, err := or.DB.Query("select sysdate from dual")
 
 	if err != nil {
-		Log.Error("(#87) !!! Error running query: select sysdate from dual" + "\n" + err.Error())
-		Log.Error("(#88) " + or.DBHost + " ... " + or.DBName)
-		return
+		LogError := "(#51) Error running query: select sysdate from dual" + "\n" + err.Error()
+		LogError += "(#52) " + or.DBHost + " ... " + or.DBName
+		return errors.New(LogError)
 	}
 	defer rows.Close()
 
@@ -63,43 +58,31 @@ func (or *OracleConnect) ConnectBD() {
 	for rows.Next() {
 		rows.Scan(&thedate)
 	}
-	Log.Info("*** test to: " + or.DBHost + "  ***")
-	Log.Info("*** date is: " + thedate + " ***")
+	return nil
 
-	Log.Debug("******************************************")
-	// defer db.Close() //  клозить будем на выходе из мэйна
 }
 
-func (or *OracleConnect) GetDBSettingFromXMLfile() {
+func (or *OracleConnect) GetDBSettingFromXMLfile() error {
 
 	// Open our Settings: oracle-settings.xml
 	// пробуем открыть файл с настройками из каталога с программой
 	ex, err := os.Executable()
 	if err != nil {
-		Log.Error("(#settingsXML.getDBSettingFromXMLfile() провалилась попытка получить рабочую директорию (os.Executable()) :" + err.Error())
-		panic(err)
+		LogError := "(#settingsXML.getDBSettingFromXMLfile() провалилась попытка получить рабочую директорию (os.Executable()) :" + err.Error()
+		return errors.New(LogError)
 	}
 	ExePath := filepath.Dir(ex)
-
-	settingFileName := "oracle-settings.xml"
-	xmlFile, err := os.Open(ExePath + "/" + settingFileName)
+	fileName := ExePath + "/oracle-settings.xml"
+	xmlFile, err := os.Open(fileName)
 
 	if err != nil {
-		Log.Debug(err.Error())
-		// не получилось открываем константный, отладка
-		//debugFileName := "/home/parallels/go/src/" + settingFileName
-		debugFileName := "c:\\Go\\src\\" + settingFileName
-		Log.Debug("... " + settingFileName + " не найден в папке с исполняемым файлом, открываем " + debugFileName)
-		xmlFile, err = os.Open(debugFileName)
-		if err != nil {
-			Log.Error("error os.Open(" + debugFileName + "):" + err.Error())
-		}
+		return errors.New("error os.Open(" + fileName + "):" + err.Error())
 	}
 	defer xmlFile.Close()
 
 	byteXML, _ := ioutil.ReadAll(xmlFile)
 	if err := xml.Unmarshal(byteXML, &or); err != nil {
-		Log.Error("error xml.Unmarshal " + settingFileName + ":" + err.Error())
-		panic(err)
+		return errors.New("error xml.Unmarshal " + fileName + ":" + err.Error())
 	}
+	return nil
 }
